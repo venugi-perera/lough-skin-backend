@@ -40,6 +40,10 @@ import setupSwagger from './swaggerConfig.js';
 import Router from './Routes/Router.js';
 import webhookRouter from './Routes/webhook.js'; // ✅ new webhook router
 import bookingSuccess from './Routes/bookingSuccess.js'; // ✅ new booking success route
+// ✅ load environment variables (in index.js or top-level file)
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 
