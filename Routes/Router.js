@@ -1,7 +1,9 @@
 import SigninRouter from './userRoute.js';
-import articleRouter from './article.js';
+import bookingRouter from './bookingRoutes.js';
+import paymentsRouter from './payments.js';
 
 export default {
   SigninRouter,
-  articleRouter,
+  bookingRouter,
+  paymentsRouter,
 };

@@ -1,4 +1,4 @@
-import UserModel from './userSchema.js';
+import UserModel from './Availability.js';
 
 export default {
   UserModel,

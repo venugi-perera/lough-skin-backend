@@ -1,155 +1,140 @@
-import Blog from '../Models/Blog.js'; // import the model
+import Stripe from 'stripe';
+import Booking from '../Models/Booking.js';
+import Availability from '../Models/Availability.js';
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Create blog
-const generateBlog = async (req, res) => {
+const availabilityRoutes = async (req, res) => {
+  const { date } = req.query;
+
   try {
-    const {
-      title,
-      body,
-      author,
-      status,
-      category,
-      readingTime,
-      createdDate,
-      createdTime,
-      imageUrl, // added imageUrl
-    } = req.body;
+    const dayOfWeek = new Date(date).getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    let startTime, endTime;
 
-    if (
-      !title ||
-      !body ||
-      !author ||
-      !category ||
-      !readingTime ||
-      !createdDate ||
-      !createdTime ||
-      !imageUrl
-    ) {
-      return res.status(400).json({
-        message:
-          'Missing required fields: title, body, author, category, readingTime, createdDate, createdTime, or imageUrl',
-      });
+    // Handle closed days
+    switch (dayOfWeek) {
+      case 1: // Monday
+        return res.json([]); // Closed
+      case 2:
+      case 3:
+      case 4:
+      case 5:
+        startTime = '10:30';
+        endTime = '18:30';
+        break;
+      case 6: // Saturday
+      case 0: // Sunday
+        startTime = '11:00';
+        endTime = '18:00';
+        break;
+      default:
+        return res.json([]);
     }
 
-    const blog = await Blog.create({
-      title,
-      body,
-      author,
-      status,
-      category,
-      readingTime,
-      createdDate,
-      createdTime,
-      imageUrl,
+    const generatedSlots = generateTimeSlots(startTime, endTime, 60);
+
+    // Check if availability record exists for the date
+    const availability = await Availability.findOne({ date });
+
+    if (!availability) {
+      // No record → all generated slots are available
+      return res.json(generatedSlots);
+    }
+
+    // Filter out fully booked slots (2 or more bookings for a slot)
+    const availableSlots = generatedSlots.filter((slotTime) => {
+      const slot = availability.slots.find((s) => s.time === slotTime);
+      if (!slot) return true; // Slot not yet booked
+      return !slot.isBooked; // Only show slots not marked booked
     });
 
-    console.log('Blog saved to DB:', blog);
-    res.status(201).json({ blog });
-  } catch (error) {
-    console.error('Error creating blog:', error);
-    res
-      .status(500)
-      .json({ message: 'Error creating blog', error: error.message });
+    res.json(availableSlots);
+  } catch (err) {
+    console.error('Error fetching availability:', err.message);
+    res.status(500).json({ error: 'Failed to fetch availability' });
   }
 };
 
-// Get all blogs
-const getAllBlogs = async (req, res) => {
+// 🕒 Generate hourly time slots
+function generateTimeSlots(start, end, interval) {
+  const slots = [];
+  const [startHour, startMin] = start.split(':').map(Number);
+  const [endHour, endMin] = end.split(':').map(Number);
+
+  let current = new Date();
+  current.setHours(startHour, startMin, 0, 0);
+
+  const endTime = new Date();
+  endTime.setHours(endHour, endMin, 0, 0);
+
+  while (current < endTime) {
+    const hour = current.getHours();
+    const minute = current.getMinutes();
+    const formatted = formatTime(hour, minute);
+    slots.push(formatted);
+    current.setMinutes(current.getMinutes() + interval);
+  }
+
+  return slots;
+}
+
+// ⏱️ Format time as 'HH:MM AM/PM'
+function formatTime(hour, minute) {
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hr = hour % 12 || 12;
+  const min = minute.toString().padStart(2, '0');
+  return `${hr}:${min} ${ampm}`;
+}
+
+const bookingsRoutes = async (req, res) => {
   try {
-    const blogs = await Blog.find().sort({ _id: -1 }); // sort newest first
-    res.status(200).json({ blogs });
+    const bookings = await Booking.find().sort({ _id: -1 });
+    res.status(200).json({ bookings });
   } catch (error) {
-    console.error('Error fetching blogs:', error);
-    res
-      .status(500)
-      .json({ message: 'Error fetching blogs', error: error.message });
+    res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 };
 
-// Edit/Update a blog
-const editBlog = async (req, res) => {
+const paymentsRoutes = async (req, res) => {
+  const { customer, services, date, timeSlot, payment } = req.body;
+
   try {
-    const { id } = req.params;
-    const {
-      title,
-      body,
-      author,
-      status,
-      category,
-      readingTime,
-      createdDate,
-      createdTime,
-      imageUrl, // added imageUrl
-    } = req.body;
+    const availability = await Availability.findOne({ date });
+    if (!availability)
+      return res.status(400).json({ error: 'No availability for this date' });
 
-    if (
-      !title ||
-      !body ||
-      !author ||
-      !category ||
-      !readingTime ||
-      !createdDate ||
-      !createdTime ||
-      !imageUrl
-    ) {
-      return res.status(400).json({
-        message:
-          'Missing required fields: title, body, author, category, readingTime, createdDate, createdTime, or imageUrl',
-      });
+    const slot = availability.slots.find((s) => s.time === timeSlot);
+    if (!slot || slot.isBooked)
+      return res.status(400).json({ error: 'Time slot already booked' });
+
+    if (payment.method === 'card') {
+      const intent = await stripe.paymentIntents.retrieve(
+        payment.paymentIntentId
+      );
+      if (intent.status !== 'succeeded') {
+        return res.status(402).json({ error: 'Payment not completed' });
+      }
     }
 
-    const updatedBlog = await Blog.findByIdAndUpdate(
-      id,
-      {
-        title,
-        body,
-        author,
-        status,
-        category,
-        readingTime,
-        createdDate,
-        createdTime,
-        imageUrl,
-      },
-      { new: true }
-    );
+    const booking = new Booking({
+      customer,
+      services,
+      date,
+      timeSlot,
+      payment,
+    });
+    await booking.save();
 
-    if (!updatedBlog) {
-      return res.status(404).json({ message: 'Blog not found' });
-    }
+    slot.isBooked = true;
+    await availability.save();
 
-    res.status(200).json({ blog: updatedBlog });
-  } catch (error) {
-    console.error('Error updating blog:', error);
-    res
-      .status(500)
-      .json({ message: 'Error updating blog', error: error.message });
-  }
-};
-
-// Delete a blog
-const deleteBlog = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const deletedBlog = await Blog.findByIdAndDelete(id);
-
-    if (!deletedBlog) {
-      return res.status(404).json({ message: 'Blog not found' });
-    }
-
-    res.status(200).json({ message: 'Blog deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting blog:', error);
-    res
-      .status(500)
-      .json({ message: 'Error deleting blog', error: error.message });
+    res.json({ success: true, booking });
+  } catch (err) {
+    res.status(500).json({ error: 'Booking failed' });
   }
 };
 
 export default {
-  generateBlog,
-  getAllBlogs,
-  editBlog,
-  deleteBlog,
+  availabilityRoutes,
+  bookingsRoutes,
+  paymentsRoutes,
 };
