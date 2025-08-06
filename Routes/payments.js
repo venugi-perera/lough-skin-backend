@@ -68,8 +68,8 @@ router.post('/create-payment-intent', async (req, res) => {
       invoice_creation: {
         enabled: true,
       },
-      success_url: `${origin}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/booking-cancelled`,
+      success_url: `/booking-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `/booking-cancelled`,
     });
 
     res.json({ success: true, session_url: session.url });
