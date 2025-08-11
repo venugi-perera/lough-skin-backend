@@ -42,6 +42,7 @@ import webhookRouter from './Routes/webhook.js'; // ✅ new webhook router
 import bookingSuccess from './Routes/bookingSuccess.js'; // ✅ new booking success route
 // ✅ load environment variables (in index.js or top-level file)
 import dotenv from 'dotenv';
+import ServiceRouter from './Routes/serviceRoutes.js';
 
 dotenv.config();
 
@@ -68,6 +69,9 @@ app.get('/', (req, res) => {
 app.use('/auth', Router.SigninRouter);
 app.use('/api', Router.bookingRouter);
 app.use('/api', Router.paymentsRouter);
+app.use('/admin/api', Router.adminRouter);
 app.use('/api', bookingSuccess);
+
+app.use('/api/services', ServiceRouter);
 
 export default app;
