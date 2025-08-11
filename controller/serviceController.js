@@ -1,5 +1,4 @@
-import Service from '../models/Service.js';
-
+import Service from '../Models/Service.js';
 // GET all services
 async function getAllServices(req, res) {
   try {
