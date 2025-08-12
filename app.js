@@ -43,6 +43,7 @@ import bookingSuccess from './Routes/bookingSuccess.js'; // ✅ new booking succ
 // ✅ load environment variables (in index.js or top-level file)
 import dotenv from 'dotenv';
 import ServiceRouter from './Routes/serviceRoutes.js';
+import CategoryRouter from './Routes/categoryRoutes.js';
 
 dotenv.config();
 
@@ -73,5 +74,6 @@ app.use('/admin/api', Router.adminRouter);
 app.use('/api', bookingSuccess);
 
 app.use('/api/services', ServiceRouter);
+app.use('/api/categories', CategoryRouter);
 
 export default app;
