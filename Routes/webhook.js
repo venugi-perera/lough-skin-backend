@@ -62,8 +62,8 @@ const createBooking = async (customer, session) => {
       address: session.customer_details.address,
     },
     notes: customer.metadata.notes,
-    subtotal: session.amount_subtotal,
-    total: session.amount_total,
+    subtotal: session.amount_subtotal / 100, // convert cents/pence → € / £
+    total: session.amount_total / 100,
     payment_status: session.payment_status,
     paymentMethod: 'Stripe',
     confirmed: true,
