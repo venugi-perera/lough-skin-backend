@@ -67,11 +67,12 @@ app.use(express.json()); // ✅ JSON body parsing for all other routes
 app.get('/', (req, res) => {
   res.send('API is running...');
 });
-app.use('/auth', Router.SigninRouter);
+// app.use('/auth', Router.SigninRouter);
 app.use('/api', Router.bookingRouter);
 app.use('/api', Router.paymentsRouter);
 app.use('/admin/api', Router.adminRouter);
 app.use('/api', bookingSuccess);
+app.use('/api/users', Router.userRouter);
 
 app.use('/api/services', ServiceRouter);
 app.use('/api/categories', CategoryRouter);

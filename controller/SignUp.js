@@ -1,65 +1,47 @@
-import bcryptjs from 'bcryptjs';
+import bcrypt from 'bcryptjs';
+import User from '../Models/User.js';
 
-import awsHandler from './aws.js';
-import Model from '../Models/Model.js';
+const userSignUp = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
 
-const userSignUp = (req, res, next) => {
-  const { name, password, email, imageUrl } = req.body;
+    // Validate input
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required.' });
+    }
 
-  // Check if the email is already taken
-  Model.UserModel.findOne({ email })
-    .then((user) => {
-      if (user) {
-        return res.status(400).json({ message: 'Email already taken.' });
-      }
+    // Check if the email is already taken
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already taken.' });
+    }
 
-      // Proceed with user creation
-      const handleUserCreation = (image) => {
-        bcryptjs.hash(password, 12).then((hashedPassword) => {
-          const newUser = new Model.UserModel({
-            name,
-            password: hashedPassword,
-            email,
-            imageUrl: image || imageUrl, // Use either the uploaded image or the provided URL
-            userType: 'user',
-          });
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
 
-          newUser
-            .save()
-            .then((savedUser) =>
-              res.status(200).json({
-                message: 'Account created successfully.',
-                savedUser,
-              })
-            )
-            .catch((err) => {
-              res.status(500);
-              next(
-                new Error(`Unable to create user. Please try later. ${err}`)
-              );
-            });
-        });
-      };
-
-      // Handle file upload if present, otherwise proceed with the provided imageUrl
-      if (req.file) {
-        awsHandler
-          .UploadToAws(req.file)
-          .then((uploadedImage) => {
-            handleUserCreation(uploadedImage);
-          })
-          .catch((err) => {
-            res.status(500);
-            next(new Error(`Image upload failed. ${err}`));
-          });
-      } else {
-        handleUserCreation(imageUrl || ''); // Pass imageUrl or an empty string if neither is provided
-      }
-    })
-    .catch((err) => {
-      res.status(500);
-      next(new Error(err));
+    // Create new user
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      userType: 'user', // default user type
     });
+
+    const savedUser = await newUser.save();
+
+    res.status(201).json({
+      message: 'Account created successfully.',
+      user: {
+        id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        userType: savedUser.userType,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    next(new Error('Unable to create user. Please try later.'));
+  }
 };
 
 export default userSignUp;

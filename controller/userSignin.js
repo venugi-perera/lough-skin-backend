@@ -1,15 +1,14 @@
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-import Model from '../Models/Model.js';
+import User from '../Models/User.js';
 
 const createToken = (user, res, next) => {
-  const { id, email, name, imageUrl } = user;
+  const { id, email, name } = user; // removed imageUrl
   const payload = {
     _id: id,
     email,
     name,
-    imageUrl,
   };
   console.log(payload);
   // create a token
@@ -37,7 +36,7 @@ const createToken = (user, res, next) => {
 const userSignIn = (req, res, next) => {
   const { email, password } = req.body;
   // Find user with the passed email
-  Model.UserModel.findOne({ email }).then((user) => {
+  User.findOne({ email }).then((user) => {
     if (user) {
       // if email found compare the password
       bcryptjs.compare(password, user.password).then((result) => {
