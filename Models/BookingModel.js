@@ -24,9 +24,10 @@ const bookingSchema = new mongoose.Schema(
       required: false,
     },
     checkoutSessionId: {
-      type: String, // Stripe Checkout Session ID
+      type: String,
+      unique: true,
+      sparse: true, // <-- allows multiple nulls
       required: false,
-      default: null,
     },
     paymentIntentId: {
       type: String,
@@ -91,15 +92,6 @@ const bookingSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
-);
-
-// Create a partial unique index for non-null checkoutSessionId
-bookingSchema.index(
-  { checkoutSessionId: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { checkoutSessionId: { $type: 'string' } },
-  }
 );
 
 export default mongoose.model('Booking', bookingSchema);
