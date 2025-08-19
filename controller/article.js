@@ -208,7 +208,7 @@ const createBooking = async (req, res) => {
       bookingData.appointmentTime
     );
 
-    res.status(201).json({ message: 'Booking created', booking });
+    res.status(201).json({ message: 'Booking created', booking: savedBooking });
   } catch (err) {
     console.error('❌ Error saving booking:', err.message);
     res.status(500).json({ error: 'Failed to create booking' });
