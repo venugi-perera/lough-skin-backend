@@ -58,17 +58,23 @@ const bookingSchema = new mongoose.Schema(
     notes: {
       type: String,
     },
-    subtotal: Number,
-    total: Number,
+
+    // 💰 Payment details
+    subtotal: Number, // total of all services before deposit
+    total: Number, // total full amount (100%)
+    depositPaid: { type: Number, required: false }, // 30% deposit actually paid
+    remainingBalance: Number, // 70% due later
+
     payment_status: {
       type: String,
-      enum: ['paid', 'unpaid', 'pending'],
+      enum: ['paid', 'unpaid', 'pending', 'deposit-paid'],
       default: 'unpaid',
     },
     paymentMethod: {
       type: String,
       default: 'Stripe',
     },
+
     confirmed: {
       type: Boolean,
       default: false,

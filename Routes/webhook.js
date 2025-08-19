@@ -44,12 +44,12 @@ const createBooking = async (customer, session) => {
   const bookingData = {
     userId: customer.metadata.userId,
     customerId: session.customer,
-    checkoutSessionId: session.id, // ✅ Save the Stripe session ID
+    checkoutSessionId: session.id,
     paymentIntentId: session.payment_intent,
     services: services.map((service) => ({
       serviceId: service.serviceId,
       name: service.name,
-      price: service.price,
+      price: service.price, // full service price
       duration: service.duration,
     })),
     appointmentDate: new Date(customer.metadata.appointmentDate),
@@ -62,8 +62,9 @@ const createBooking = async (customer, session) => {
       address: session.customer_details.address,
     },
     notes: customer.metadata.notes,
-    subtotal: session.amount_subtotal / 100, // convert cents/pence → € / £
-    total: session.amount_total / 100,
+    subtotal: services.reduce((sum, s) => sum + s.price, 0), // full subtotal
+    depositPaid: session.amount_total / 100, // 30% actually paid
+    total: services.reduce((sum, s) => sum + s.price, 0), // full amount
     payment_status: session.payment_status,
     paymentMethod: 'Stripe',
     confirmed: true,

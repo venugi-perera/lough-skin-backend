@@ -41,20 +41,25 @@ router.post('/create-payment-intent', async (req, res) => {
     });
 
     // Create Stripe line items from selected services
-    const line_items = services.map((service) => ({
-      price_data: {
-        currency,
-        product_data: {
-          name: service.name,
-          description: `${service.duration} mins`,
-          metadata: {
-            id: service.serviceId,
+    const line_items = services.map((service) => {
+      const depositAmount = Math.round(service.price * 0.3 * 100); // 30% in cents
+
+      return {
+        price_data: {
+          currency,
+          product_data: {
+            name: service.name,
+            description: `${service.duration} mins (30% deposit)`,
+            metadata: {
+              id: service.serviceId,
+              fullPrice: service.price, // keep original full price
+            },
           },
+          unit_amount: depositAmount,
         },
-        unit_amount: service.price * 100, // convert to cents/pence
-      },
-      quantity: 1,
-    }));
+        quantity: 1,
+      };
+    });
 
     // Create the checkout session
     const session = await stripe.checkout.sessions.create({
@@ -93,7 +98,7 @@ const createBooking = async (customer, session) => {
     services: services.map((service) => ({
       serviceId: service.serviceId,
       name: service.name,
-      price: service.price, // original price in normal units
+      price: service.price, // full service price
       duration: service.duration,
     })),
     appointmentDate: new Date(customer.metadata.appointmentDate),
@@ -106,8 +111,9 @@ const createBooking = async (customer, session) => {
       address: session.customer_details.address,
     },
     notes: customer.metadata.notes,
-    subtotal: session.amount_subtotal / 100, // convert cents/pence → € / £
-    total: session.amount_total / 100,
+    subtotal: services.reduce((sum, s) => sum + s.price, 0), // full subtotal
+    depositPaid: session.amount_total / 100, // 30% actually paid
+    total: services.reduce((sum, s) => sum + s.price, 0), // full amount
     payment_status: session.payment_status,
     paymentMethod: 'Stripe',
     confirmed: true,
