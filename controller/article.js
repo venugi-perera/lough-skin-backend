@@ -164,11 +164,12 @@ const updateAvailability = async (appointmentDate, appointmentTime) => {
   }
 };
 
-const createBooking = async (customer) => {
-  const services = JSON.parse(customer.metadata.services);
+const createBooking = async (req) => {
+  const payload = req.body;
+  const services = payload.services;
 
   const bookingData = {
-    userId: customer.metadata.userId,
+    userId: '',
     customerId: '',
     checkoutSessionId: '',
     paymentIntentId: '',
@@ -178,16 +179,16 @@ const createBooking = async (customer) => {
       price: service.price, // full service price
       duration: service.duration,
     })),
-    appointmentDate: new Date(customer.metadata.appointmentDate),
-    appointmentTime: customer.metadata.appointmentTime,
-    staffMember: customer.metadata.staffMember,
+    appointmentDate: new Date(payload.appointmentDate),
+    appointmentTime: payload.appointmentTime,
+    staffMember: '',
     customerDetails: {
-      name: customer.metadata.customerName,
-      email: customer.metadata.customerEmail,
-      phone: customer.metadata.customerPhone,
-      address: customer.metadata.address,
+      name: payload.customerDetails.name,
+      email: payload.customerDetails.email,
+      phone: payload.customerDetails.phone,
+      address: payload.customerDetails.address,
     },
-    notes: customer.metadata.notes,
+    notes: payload.customerDetails.notes,
     subtotal: services.reduce((sum, s) => sum + s.price, 0), // full subtotal
     depositPaid: 0, // 30% actually paid
     total: services.reduce((sum, s) => sum + s.price, 0), // full amount

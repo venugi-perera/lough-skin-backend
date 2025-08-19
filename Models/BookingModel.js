@@ -17,14 +17,14 @@ const bookingSchema = new mongoose.Schema(
   {
     userId: {
       type: String,
-      required: true,
+      required: false,
     },
     customerId: {
       type: String, // Stripe Customer ID
     },
     checkoutSessionId: {
       type: String, // ✅ Stripe Checkout Session ID
-      required: true,
+      required: false,
       unique: true,
     },
     paymentIntentId: {
