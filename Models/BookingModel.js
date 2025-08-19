@@ -25,8 +25,6 @@ const bookingSchema = new mongoose.Schema(
     },
     checkoutSessionId: {
       type: String,
-      unique: true,
-      sparse: true, // <-- allows multiple nulls
       required: false,
     },
     paymentIntentId: {
