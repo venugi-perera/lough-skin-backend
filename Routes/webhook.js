@@ -59,7 +59,7 @@ const createBooking = async (customer, session) => {
       name: customer.metadata.customerName,
       email: customer.metadata.customerEmail,
       phone: customer.metadata.customerPhone,
-      address: session.customer_details.address,
+      address: customer.metadata.address,
     },
     notes: customer.metadata.notes,
     subtotal: services.reduce((sum, s) => sum + s.price, 0), // full subtotal

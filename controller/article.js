@@ -133,8 +133,87 @@ const paymentsRoutes = async (req, res) => {
   }
 };
 
+const updateAvailability = async (appointmentDate, appointmentTime) => {
+  const dateStr = appointmentDate.toISOString().split('T')[0];
+
+  try {
+    const availability = await Availability.findOne({ date: dateStr });
+
+    if (availability) {
+      const existingSlot = availability.slots.find(
+        (slot) => slot.time === appointmentTime
+      );
+
+      if (!existingSlot) {
+        availability.slots.push({ time: appointmentTime, isBooked: true });
+      }
+
+      await availability.save();
+    } else {
+      const newAvailability = new Availability({
+        date: dateStr,
+        slots: [{ time: appointmentTime, isBooked: true }],
+      });
+
+      await newAvailability.save();
+    }
+
+    console.log(`🗓️ Availability updated for ${dateStr} at ${appointmentTime}`);
+  } catch (err) {
+    console.error('❌ Failed to update availability:', err.message);
+  }
+};
+
+const createBooking = async (customer) => {
+  const services = JSON.parse(customer.metadata.services);
+
+  const bookingData = {
+    userId: customer.metadata.userId,
+    customerId: '',
+    checkoutSessionId: '',
+    paymentIntentId: '',
+    services: services.map((service) => ({
+      serviceId: service.serviceId,
+      name: service.name,
+      price: service.price, // full service price
+      duration: service.duration,
+    })),
+    appointmentDate: new Date(customer.metadata.appointmentDate),
+    appointmentTime: customer.metadata.appointmentTime,
+    staffMember: customer.metadata.staffMember,
+    customerDetails: {
+      name: customer.metadata.customerName,
+      email: customer.metadata.customerEmail,
+      phone: customer.metadata.customerPhone,
+      address: customer.metadata.address,
+    },
+    notes: customer.metadata.notes,
+    subtotal: services.reduce((sum, s) => sum + s.price, 0), // full subtotal
+    depositPaid: 0, // 30% actually paid
+    total: services.reduce((sum, s) => sum + s.price, 0), // full amount
+    payment_status: 'pending',
+    paymentMethod: 'Manual',
+    confirmed: true,
+  };
+
+  try {
+    const newBooking = new Booking(bookingData);
+    const savedBooking = await newBooking.save();
+    console.log('✅ Booking created:', savedBooking._id);
+
+    // 🔄 Update availability table
+    await updateAvailability(
+      bookingData.appointmentDate,
+      bookingData.appointmentTime
+    );
+  } catch (err) {
+    console.error('❌ Error saving booking:', err.message);
+  }
+};
+
 export default {
   availabilityRoutes,
   bookingsRoutes,
   paymentsRoutes,
+  createBooking,
 };
