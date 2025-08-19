@@ -26,6 +26,8 @@ const bookingSchema = new mongoose.Schema(
     checkoutSessionId: {
       type: String,
       required: false,
+      unique: true, // enforce uniqueness
+      sparse: true, // allow multiple null values
     },
     paymentIntentId: {
       type: String,
@@ -91,5 +93,8 @@ const bookingSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// ✅ Make sure MongoDB creates the sparse unique index
+bookingSchema.index({ checkoutSessionId: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model('Booking', bookingSchema);
