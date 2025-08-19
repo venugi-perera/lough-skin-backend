@@ -164,7 +164,7 @@ const updateAvailability = async (appointmentDate, appointmentTime) => {
   }
 };
 
-const createBooking = async (req) => {
+const createBooking = async (req, res) => {
   const payload = req.body;
   const services = payload.services;
 
@@ -207,8 +207,11 @@ const createBooking = async (req) => {
       bookingData.appointmentDate,
       bookingData.appointmentTime
     );
+
+    res.status(201).json({ message: 'Booking created', booking });
   } catch (err) {
     console.error('❌ Error saving booking:', err.message);
+    res.status(500).json({ error: 'Failed to create booking' });
   }
 };
 
