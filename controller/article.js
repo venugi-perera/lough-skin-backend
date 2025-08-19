@@ -169,10 +169,10 @@ const createBooking = async (req) => {
   const services = payload.services;
 
   const bookingData = {
-    userId: '',
-    customerId: '',
-    checkoutSessionId: '',
-    paymentIntentId: '',
+    userId: null,
+    customerId: null,
+    checkoutSessionId: null,
+    paymentIntentId: null,
     services: services.map((service) => ({
       serviceId: service.serviceId,
       name: service.name,

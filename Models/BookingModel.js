@@ -21,6 +21,7 @@ const bookingSchema = new mongoose.Schema(
     },
     customerId: {
       type: String, // Stripe Customer ID
+      required: false,
     },
     checkoutSessionId: {
       type: String, // ✅ Stripe Checkout Session ID
@@ -29,6 +30,7 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentIntentId: {
       type: String,
+      required: false, // Stripe Payment Intent ID
     },
     services: [serviceSchema],
     appointmentDate: {
