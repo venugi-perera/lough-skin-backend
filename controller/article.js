@@ -15,13 +15,25 @@ const availabilityRoutes = async (req, res) => {
       case 1: // Monday
         return res.json([]); // Closed
       case 2:
+        startTime = '10:30';
+        endTime = '18:30';
+        break;
       case 3:
+        startTime = '10:30';
+        endTime = '18:30';
+        break;
       case 4:
+        startTime = '10:30';
+        endTime = '18:30';
+        break;
       case 5:
         startTime = '10:30';
         endTime = '18:30';
         break;
       case 6: // Saturday
+        startTime = '11:00';
+        endTime = '18:00';
+        break;
       case 0: // Sunday
         startTime = '11:00';
         endTime = '18:00';
