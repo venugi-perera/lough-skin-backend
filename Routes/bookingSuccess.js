@@ -20,6 +20,8 @@ router.get('/booking-success', async (req, res) => {
     }
 
     res.json({
+      depositPaid: booking.depositPaid,
+      total: booking.total,
       bookingId: booking._id,
       customerName: booking.customerDetails.name,
       service: booking.services.map((s) => s.name).join(', '),
