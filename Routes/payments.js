@@ -1,20 +1,17 @@
 import express from 'express';
 import Stripe from 'stripe';
-import bookingModel from '../Models/BookingModel.js'; // updated model name
 import { sendBookingConfirmationEmail } from './sendEmail.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
 
 const currency = 'eur';
-const deliveryCharge = 0; // optional for services
 
 // Create Checkout Session for Service Booking
 router.post('/create-payment-intent', async (req, res) => {
   const {
     userId,
     services,
-    totalAmount,
     appointmentDate,
     appointmentTime,
     customerInfo,
@@ -37,6 +34,7 @@ router.post('/create-payment-intent', async (req, res) => {
         customerName: customerInfo.name,
         customerEmail: customerInfo.email,
         customerPhone: customerInfo.phone,
+        paymentDate: new Date().toISOString(), // store payment creation date
       },
     });
 
@@ -52,7 +50,7 @@ router.post('/create-payment-intent', async (req, res) => {
             description: `${service.duration} mins (30% deposit)`,
             metadata: {
               id: service.serviceId,
-              fullPrice: service.price, // keep original full price
+              fullPrice: service.price,
             },
           },
           unit_amount: depositAmount,
@@ -67,12 +65,8 @@ router.post('/create-payment-intent', async (req, res) => {
       customer: customer.id,
       line_items,
       mode: 'payment',
-      phone_number_collection: {
-        enabled: true,
-      },
-      invoice_creation: {
-        enabled: true,
-      },
+      phone_number_collection: { enabled: true },
+      invoice_creation: { enabled: true },
       success_url: `${origin}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/booking-cancelled`,
     });
@@ -86,55 +80,7 @@ router.post('/create-payment-intent', async (req, res) => {
   }
 });
 
-// Create Booking in DB after payment
-const createBooking = async (customer, session) => {
-  const services = JSON.parse(customer.metadata.services);
-
-  const bookingData = {
-    userId: customer.metadata.userId,
-    customerId: session.customer,
-    checkoutSessionId: session.id,
-    paymentIntentId: session.payment_intent,
-    services: services.map((service) => ({
-      serviceId: service.serviceId,
-      name: service.name,
-      price: service.price, // full service price
-      duration: service.duration,
-    })),
-    appointmentDate: new Date(customer.metadata.appointmentDate),
-    appointmentTime: customer.metadata.appointmentTime,
-    staffMember: customer.metadata.staffMember,
-    customerDetails: {
-      name: customer.metadata.customerName,
-      email: customer.metadata.customerEmail,
-      phone: customer.metadata.customerPhone,
-      address: session.customer_details.address,
-    },
-    notes: customer.metadata.notes,
-    subtotal: services.reduce((sum, s) => sum + s.price, 0), // full subtotal
-    depositPaid: session.amount_total / 100, // 30% actually paid
-    total: services.reduce((sum, s) => sum + s.price, 0), // full amount
-    payment_status: session.payment_status,
-    paymentMethod: 'Stripe',
-    confirmed: true,
-  };
-
-  try {
-    const newBooking = new bookingModel(bookingData);
-    const savedBooking = await newBooking.save();
-    console.log('✅ Booking created:', savedBooking._id);
-
-    await sendBookingConfirmationEmail(
-      customer.metadata.customerEmail,
-      customer.metadata.customerName,
-      bookingData
-    );
-  } catch (err) {
-    console.error('❌ Error saving booking:', err.message);
-  }
-};
-
-// Stripe Webhook to handle booking after payment
+// Stripe Webhook
 router.post(
   '/webhook',
   express.raw({ type: 'application/json' }),
@@ -163,11 +109,9 @@ router.post(
       eventType = req.body.type;
     }
 
-    // Create booking when payment is successful
     if (eventType === 'checkout.session.completed') {
       stripe.customers
         .retrieve(data.customer)
-        .then((customer) => createBooking(customer, data))
         .catch((err) =>
           console.error('❌ Failed to fetch customer:', err.message)
         );

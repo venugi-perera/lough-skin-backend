@@ -53,7 +53,7 @@ const app = express();
 app.use('/api/webhook', webhookRouter);
 
 // 🧠 Initialize database and docs AFTER webhook is defined
-Connect();
+// Connect();
 setupSwagger(app);
 
 // ✅ Global middlewares AFTER webhook
