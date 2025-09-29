@@ -34,7 +34,6 @@ router.post('/create-payment-intent', async (req, res) => {
         customerName: customerInfo.name,
         customerEmail: customerInfo.email,
         customerPhone: customerInfo.phone,
-        paymentDate: new Date().toISOString(), // store payment creation date
       },
     });
 
