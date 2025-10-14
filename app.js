@@ -60,7 +60,21 @@ setupSwagger(app);
 app.use(morgan('combined'));
 app.use(helmet());
 app.use(compression());
-app.use(cors({ origin: '*', credentials: false }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // allow requests with no origin (like mobile apps, curl)
+      callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true, // allow cookies / auth headers
+  })
+);
+
+// ✅ Handle preflight requests globally
+app.options('*', cors());
+
 app.use(express.json()); // ✅ JSON body parsing for all other routes
 
 // ✅ Normal Routes
