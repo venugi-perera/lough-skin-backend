@@ -5,7 +5,7 @@ import { sendBookingConfirmationEmail } from './sendEmail.js';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
 
-const currency = 'eur';
+const currency = 'gbp';
 
 // Create Checkout Session for Service Booking
 router.post('/create-payment-intent', async (req, res) => {
