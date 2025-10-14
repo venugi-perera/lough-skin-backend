@@ -60,7 +60,7 @@ setupSwagger(app);
 app.use(morgan('combined'));
 app.use(helmet());
 app.use(compression());
-app.use(cors());
+app.use(cors({ origin: '*', credentials: false }));
 app.use(express.json()); // ✅ JSON body parsing for all other routes
 
 // ✅ Normal Routes
@@ -73,6 +73,7 @@ app.use('/api', Router.paymentsRouter);
 app.use('/admin/api', Router.adminRouter);
 app.use('/api', bookingSuccess);
 app.use('/api/users', Router.userRouter);
+// app.use('/api/consent-form', Router.consentFormRouter);
 
 app.use('/api/services', ServiceRouter);
 app.use('/api/categories', CategoryRouter);
