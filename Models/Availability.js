@@ -1,13 +1,14 @@
 import mongoose from 'mongoose';
 
+const SlotSchema = new mongoose.Schema({
+  time: { type: String, required: true },
+  isBooked: { type: Boolean, default: false },
+  bookingsCount: { type: Number, default: 0 },
+});
+
 const AvailabilitySchema = new mongoose.Schema({
-  date: String, // e.g. '2025-07-28'
-  slots: [
-    {
-      time: String, // e.g. '10:00 AM'
-      isBooked: Boolean,
-    },
-  ],
+  date: { type: String, required: true }, // 'YYYY-MM-DD'
+  slots: [SlotSchema],
 });
 
 export default mongoose.model('Availability', AvailabilitySchema);

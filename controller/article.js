@@ -1,70 +1,8 @@
 import Stripe from 'stripe';
 import Booking from '../Models/BookingModel.js';
 import Availability from '../Models/Availability.js';
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
-const availabilityRoutes = async (req, res) => {
-  const { date } = req.query;
-
-  try {
-    const dayOfWeek = new Date(date).getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    let startTime, endTime;
-
-    // Handle closed days
-    switch (dayOfWeek) {
-      case 1: // Monday
-        return res.json([]); // Closed
-      case 2:
-        startTime = '10:30';
-        endTime = '18:30';
-        break;
-      case 3:
-        startTime = '10:30';
-        endTime = '18:30';
-        break;
-      case 4:
-        startTime = '10:30';
-        endTime = '18:30';
-        break;
-      case 5:
-        startTime = '10:30';
-        endTime = '18:30';
-        break;
-      case 6: // Saturday
-        startTime = '11:00';
-        endTime = '18:00';
-        break;
-      case 0: // Sunday
-        startTime = '11:00';
-        endTime = '18:00';
-        break;
-      default:
-        return res.json([]);
-    }
-
-    const generatedSlots = generateTimeSlots(startTime, endTime, 60);
-
-    // Check if availability record exists for the date
-    const availability = await Availability.findOne({ date });
-
-    if (!availability) {
-      // No record → all generated slots are available
-      return res.json(generatedSlots);
-    }
-
-    // Filter out fully booked slots (2 or more bookings for a slot)
-    const availableSlots = generatedSlots.filter((slotTime) => {
-      const slot = availability.slots.find((s) => s.time === slotTime);
-      if (!slot) return true; // Slot not yet booked
-      return !slot.isBooked; // Only show slots not marked booked
-    });
-
-    res.json(availableSlots);
-  } catch (err) {
-    console.error('Error fetching availability:', err.message);
-    res.status(500).json({ error: 'Failed to fetch availability' });
-  }
-};
 
 // 🕒 Generate hourly time slots
 function generateTimeSlots(start, end, interval) {
@@ -97,6 +35,61 @@ function formatTime(hour, minute) {
   return `${hr}:${min} ${ampm}`;
 }
 
+// 🗓️ Fetch available slots
+const availabilityRoutes = async (req, res) => {
+  const { date } = req.query;
+
+  try {
+    const dayOfWeek = new Date(date).getDay();
+    let startTime, endTime;
+
+    switch (dayOfWeek) {
+      case 1:
+        return res.json([]); // Closed on Monday
+      case 2:
+      case 3:
+      case 4:
+      case 5:
+        startTime = '10:30';
+        endTime = '18:30';
+        break;
+      case 6:
+      case 0:
+        startTime = '11:00';
+        endTime = '18:00';
+        break;
+      default:
+        return res.json([]);
+    }
+
+    const generatedSlots = generateTimeSlots(startTime, endTime, 60);
+    const availability = await Availability.findOne({ date });
+
+    // ✅ No availability record → all slots available
+    if (!availability) {
+      return res.json(generatedSlots);
+    }
+
+    // ✅ Filter out only slots that are full (bookingsCount >= 2) or marked as leave
+    const availableSlots = generatedSlots.filter((slotTime) => {
+      const slot = availability.slots.find((s) => s.time === slotTime);
+
+      // No record found → slot is free
+      if (!slot) return true;
+
+      // Only remove slot if it's full (2+ bookings) or marked as leave
+      const isFull = slot.bookingsCount >= 2;
+      return !isFull && !slot.isLeave;
+    });
+
+    res.json(availableSlots);
+  } catch (err) {
+    console.error('Error fetching availability:', err.message);
+    res.status(500).json({ error: 'Failed to fetch availability' });
+  }
+};
+
+// 🧾 Fetch all bookings
 const bookingsRoutes = async (req, res) => {
   try {
     const bookings = await Booking.find().sort({ _id: -1 });
@@ -106,17 +99,31 @@ const bookingsRoutes = async (req, res) => {
   }
 };
 
+// 💳 Handle payment + booking
 const paymentsRoutes = async (req, res) => {
   const { customer, services, date, timeSlot, payment } = req.body;
 
   try {
     const availability = await Availability.findOne({ date });
-    if (!availability)
+    if (!availability) {
       return res.status(400).json({ error: 'No availability for this date' });
+    }
 
-    const slot = availability.slots.find((s) => s.time === timeSlot);
-    if (!slot || slot.isBooked)
-      return res.status(400).json({ error: 'Time slot already booked' });
+    let slot = availability.slots.find((s) => s.time === timeSlot);
+    if (!slot) {
+      slot = { time: timeSlot, bookingsCount: 0, isBooked: false };
+      availability.slots.push(slot);
+    }
+
+    if (slot.isLeave) {
+      return res
+        .status(400)
+        .json({ error: 'Slot unavailable (leave applied)' });
+    }
+
+    if (slot.bookingsCount >= 2) {
+      return res.status(400).json({ error: 'Slot already fully booked' });
+    }
 
     if (payment.method === 'card') {
       const intent = await stripe.paymentIntents.retrieve(
@@ -127,6 +134,7 @@ const paymentsRoutes = async (req, res) => {
       }
     }
 
+    // Create booking
     const booking = new Booking({
       customer,
       services,
@@ -136,73 +144,38 @@ const paymentsRoutes = async (req, res) => {
     });
     await booking.save();
 
-    slot.isBooked = true;
+    // Update availability slot count
+    slot.bookingsCount += 1;
+    slot.isBooked = slot.bookingsCount >= 2;
+
     await availability.save();
 
     res.json({ success: true, booking });
   } catch (err) {
+    console.error('Booking failed:', err.message);
     res.status(500).json({ error: 'Booking failed' });
   }
 };
 
-const updateAvailability = async (appointmentDate, appointmentTime) => {
-  const dateStr = appointmentDate.toISOString().split('T')[0];
-
-  try {
-    const availability = await Availability.findOne({ date: dateStr });
-
-    if (availability) {
-      const existingSlot = availability.slots.find(
-        (slot) => slot.time === appointmentTime
-      );
-
-      if (!existingSlot) {
-        availability.slots.push({ time: appointmentTime, isBooked: true });
-      }
-
-      await availability.save();
-    } else {
-      const newAvailability = new Availability({
-        date: dateStr,
-        slots: [{ time: appointmentTime, isBooked: true }],
-      });
-
-      await newAvailability.save();
-    }
-
-    console.log(`🗓️ Availability updated for ${dateStr} at ${appointmentTime}`);
-  } catch (err) {
-    console.error('❌ Failed to update availability:', err.message);
-  }
-};
-
+// 📅 Create manual booking (admin/manual)
 const createBooking = async (req, res) => {
   const payload = req.body;
   const services = payload.services;
 
   const bookingData = {
-    ...(payload.checkoutSessionId && {
-      checkoutSessionId: payload.checkoutSessionId,
-    }),
     services: services.map((service) => ({
       serviceId: service.serviceId,
       name: service.name,
-      price: service.price, // full service price
+      price: service.price,
       duration: service.duration,
     })),
     appointmentDate: new Date(payload.appointmentDate),
     appointmentTime: payload.appointmentTime,
     staffMember: '',
-    customerDetails: {
-      name: payload.customerDetails.name,
-      email: payload.customerDetails.email,
-      phone: payload.customerDetails.phone,
-      address: payload.customerDetails.address,
-    },
-    notes: payload.customerDetails.notes,
-    subtotal: services.reduce((sum, s) => sum + s.price, 0), // full subtotal
-    depositPaid: 0, // 30% actually paid
-    total: services.reduce((sum, s) => sum + s.price, 0), // full amount
+    customerDetails: payload.customerDetails,
+    subtotal: services.reduce((sum, s) => sum + s.price, 0),
+    depositPaid: 0,
+    total: services.reduce((sum, s) => sum + s.price, 0),
     payment_status: 'pending',
     paymentMethod: 'Manual',
     confirmed: true,
@@ -211,9 +184,7 @@ const createBooking = async (req, res) => {
   try {
     const newBooking = new Booking(bookingData);
     const savedBooking = await newBooking.save();
-    console.log('✅ Booking created:', savedBooking._id);
 
-    // 🔄 Update availability table
     await updateAvailability(
       bookingData.appointmentDate,
       bookingData.appointmentTime
@@ -226,9 +197,119 @@ const createBooking = async (req, res) => {
   }
 };
 
+// 🔄 Update slot availability (add one booking)
+const updateAvailability = async (appointmentDate, appointmentTime) => {
+  const dateStr = appointmentDate.toISOString().split('T')[0];
+
+  try {
+    let availability = await Availability.findOne({ date: dateStr });
+    if (!availability) {
+      availability = new Availability({ date: dateStr, slots: [] });
+    }
+
+    let slot = availability.slots.find((s) => s.time === appointmentTime);
+    if (!slot) {
+      slot = { time: appointmentTime, bookingsCount: 0, isBooked: false };
+      availability.slots.push(slot);
+    }
+
+    if (!slot.isLeave) {
+      slot.bookingsCount += 1;
+      if (slot.bookingsCount >= 2) slot.isBooked = true;
+    }
+
+    await availability.save();
+    console.log(`✅ Availability updated for ${dateStr} at ${appointmentTime}`);
+  } catch (err) {
+    console.error('❌ Failed to update availability:', err.message);
+  }
+};
+
+// 🚫 Leave update (block full day or specific slot)
+export const leaveUpdate = async (req, res) => {
+  try {
+    const { date, time, fullDay } = req.body;
+
+    if (!date) return res.status(400).json({ error: 'Date is required.' });
+
+    const dateStr = new Date(date).toISOString().split('T')[0];
+    const dayOfWeek = new Date(date).getDay();
+
+    let startTime, endTime;
+    switch (dayOfWeek) {
+      case 1:
+        return res.status(400).json({ error: 'Salon closed on Monday.' });
+      case 2:
+      case 3:
+      case 4:
+      case 5:
+        startTime = '10:30';
+        endTime = '18:30';
+        break;
+      case 6:
+      case 0:
+        startTime = '11:00';
+        endTime = '18:00';
+        break;
+    }
+
+    const allSlots = generateTimeSlots(startTime, endTime, 60);
+    let availability = await Availability.findOne({ date: dateStr });
+    if (!availability) {
+      availability = new Availability({ date: dateStr, slots: [] });
+    }
+
+    if (true) {
+      // 🕒 Apply leave (as one booking) to all slots of the day
+      allSlots.forEach((slotTime) => {
+        let slot = availability.slots.find((s) => s.time === slotTime);
+
+        if (!slot) {
+          availability.slots.push({
+            time: slotTime,
+            bookingsCount: 1, // leave counts as one booking
+            isBooked: false,
+          });
+        } else {
+          slot.bookingsCount = Math.min(slot.bookingsCount + 1, 2);
+          slot.isBooked = slot.bookingsCount >= 2;
+        }
+      });
+    } else if (time) {
+      // 🕐 Apply leave to a specific time slot
+      let slot = availability.slots.find((s) => s.time === time);
+      if (!slot) {
+        availability.slots.push({
+          time,
+          bookingsCount: 1,
+          isBooked: false,
+        });
+      } else {
+        slot.bookingsCount = Math.min(slot.bookingsCount + 1, 2);
+        slot.isBooked = slot.bookingsCount >= 2;
+      }
+    } else {
+      return res.status(400).json({ error: 'Please specify fullDay or time.' });
+    }
+
+    await availability.save();
+
+    res.json({
+      message: fullDay
+        ? `Full-day leave applied (as one booking per slot) for ${dateStr}`
+        : `Leave applied (as one booking) for ${dateStr} at ${time}`,
+      updatedAvailability: availability,
+    });
+  } catch (error) {
+    console.error('❌ Leave update failed:', error.message);
+    res.status(500).json({ error: 'Failed to apply leave' });
+  }
+};
+
 export default {
   availabilityRoutes,
   bookingsRoutes,
   paymentsRoutes,
   createBooking,
+  leaveUpdate,
 };
