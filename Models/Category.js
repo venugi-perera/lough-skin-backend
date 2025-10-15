@@ -8,7 +8,7 @@ const categorySchema = new mongoose.Schema(
       unique: true,
       trim: true,
       minlength: 2,
-      maxlength: 50,
+      // maxlength: 50,
     },
     description: {
       type: String,
@@ -16,7 +16,7 @@ const categorySchema = new mongoose.Schema(
       unique: true,
       trim: true,
       minlength: 2,
-      maxlength: 100,
+      // maxlength: 100,
     },
   },
   { timestamps: true }
