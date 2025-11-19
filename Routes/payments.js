@@ -1,6 +1,6 @@
 import express from 'express';
 import Stripe from 'stripe';
-import { sendBookingConfirmationEmail } from './sendEmail.js';
+// import ConsentForm from '../Models/ConsentForm.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
@@ -17,10 +17,37 @@ router.post('/create-payment-intent', async (req, res) => {
     customerInfo,
     staffMember,
     notes,
+    // consentForm,
+    // logs,
   } = req.body;
   const { origin } = req.headers;
 
   try {
+    // const saveConsentForm = async (consentData, ipAddress) => {
+    //   try {
+    //     const newConsent = new ConsentForm({
+    //       userId,
+    //       ...consentData,
+    //       ipAddress,
+    //       bookingId: null, // not linked yet
+    //       status: 'pending',
+    //     });
+
+    //     const savedConsent = await newConsent.save();
+    //     console.log('✅ Consent form saved:', savedConsent._id);
+    //     return savedConsent;
+    //   } catch (err) {
+    //     console.error('❌ Error saving consent form:', err.message);
+    //   }
+    // };
+
+    // let savedConsent = null;
+
+    // if (consentForm) {
+    //   // Save it and keep reference
+    //   savedConsent = await saveConsentForm(consentForm, logs.ip);
+    // }
+
     // Create a Stripe customer with metadata for booking
     const customer = await stripe.customers.create({
       metadata: {
@@ -34,6 +61,8 @@ router.post('/create-payment-intent', async (req, res) => {
         customerName: customerInfo.name,
         customerEmail: customerInfo.email,
         customerPhone: customerInfo.phone,
+        // consentFormId: savedConsent ? savedConsent._id.toString() : '', // 👈 fixed
+        // ipAddress: logs.ip,
       },
     });
 
@@ -114,6 +143,20 @@ router.post(
         .catch((err) =>
           console.error('❌ Failed to fetch customer:', err.message)
         );
+
+      const session = data;
+
+      // Retrieve full session details (includes customer, invoice)
+      const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
+        expand: ['customer', 'payment_intent', 'invoice'],
+      });
+
+      // Send a receipt manually if available
+      if (fullSession.payment_intent) {
+        await stripe.paymentIntents.update(fullSession.payment_intent, {
+          receipt_email: 'venugiperera@gmail.com',
+        });
+      }
     }
 
     res.status(200).end();
