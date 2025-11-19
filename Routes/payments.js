@@ -143,20 +143,6 @@ router.post(
         .catch((err) =>
           console.error('❌ Failed to fetch customer:', err.message)
         );
-
-      const session = data;
-
-      // Retrieve full session details (includes customer, invoice)
-      const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
-        expand: ['customer', 'payment_intent', 'invoice'],
-      });
-
-      // Send a receipt manually if available
-      if (fullSession.payment_intent) {
-        await stripe.paymentIntents.update(fullSession.payment_intent, {
-          receipt_email: 'venugiperera@gmail.com',
-        });
-      }
     }
 
     res.status(200).end();
